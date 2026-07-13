@@ -2032,8 +2032,18 @@
             <div class="settings-content">
                 <div class="setting-item">
                     <label class="setting-label">DeepSeek API Key</label>
-                    <input type="password" class="setting-input" id="api-key-input" placeholder="输入您的 API Key">
+                    <input type="password" class="setting-input" id="api-key-input" placeholder="输入您的 DeepSeek API Key">
                     <p class="setting-hint">请访问 https://platform.deepseek.com/ 获取 API Key</p>
+                </div>
+                <div class="setting-item">
+                    <label class="setting-label">百度语音 API Key</label>
+                    <input type="password" class="setting-input" id="baidu-api-key-input" placeholder="输入百度语音 API Key">
+                    <p class="setting-hint">请访问 https://ai.baidu.com/ 获取</p>
+                </div>
+                <div class="setting-item">
+                    <label class="setting-label">百度语音 Secret Key</label>
+                    <input type="password" class="setting-input" id="baidu-secret-key-input" placeholder="输入百度语音 Secret Key">
+                    <p class="setting-hint">请访问 https://ai.baidu.com/ 获取</p>
                 </div>
                 <button class="btn-primary btn-save" onclick="saveApiKey()">
                     <i data-lucide="save"></i>
@@ -2188,9 +2198,15 @@
         updateWeatherUI();
 
         const savedApiKey = localStorage.getItem('warmHeartApiKey') || '';
+        const savedBaiduApiKey = localStorage.getItem('warmHeartBaiduApiKey') || '';
+        const savedBaiduSecretKey = localStorage.getItem('warmHeartBaiduSecretKey') || '';
         const AI_CONFIG = {
             apiKey: savedApiKey,
-            backendUrl: '/api/chat'
+            backendUrl: '/api/chat',
+            baiduApiKey: savedBaiduApiKey,
+            baiduSecretKey: savedBaiduSecretKey,
+            baiduAccessToken: null,
+            baiduTokenExpireTime: 0
         };
 
         let voiceEnabled = true;
@@ -2245,8 +2261,55 @@
             lucide.createIcons();
         }
 
-        function speak(text) {
+        async function getBaiduAccessToken() {
+            if (!AI_CONFIG.baiduApiKey || !AI_CONFIG.baiduSecretKey) {
+                return null;
+            }
+            
+            const now = Date.now();
+            if (AI_CONFIG.baiduAccessToken && AI_CONFIG.baiduTokenExpireTime > now) {
+                return AI_CONFIG.baiduAccessToken;
+            }
+            
+            try {
+                const response = await fetch('https://aip.baidubce.com/oauth/2.0/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `grant_type=client_credentials&client_id=${AI_CONFIG.baiduApiKey}&client_secret=${AI_CONFIG.baiduSecretKey}`
+                });
+                
+                const data = await response.json();
+                if (data.access_token) {
+                    AI_CONFIG.baiduAccessToken = data.access_token;
+                    AI_CONFIG.baiduTokenExpireTime = now + (data.expires_in - 60) * 1000;
+                    return data.access_token;
+                }
+                return null;
+            } catch (error) {
+                console.error('获取百度access_token失败:', error);
+                return null;
+            }
+        }
+
+        async function speak(text) {
             if (!voiceEnabled) return;
+            
+            if (AI_CONFIG.baiduApiKey && AI_CONFIG.baiduSecretKey) {
+                try {
+                    const token = await getBaiduAccessToken();
+                    if (token) {
+                        const audioUrl = `https://tsn.baidu.com/text2audio?tex=${encodeURIComponent(text)}&tok=${token}&cuid=warm_heart_assistant&ctp=1&lan=zh&per=4&spd=5&pit=5&vol=5`;
+                        const audio = new Audio(audioUrl);
+                        audio.play();
+                        return;
+                    }
+                } catch (error) {
+                    console.error('百度语音合成失败:', error);
+                }
+            }
+            
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
@@ -2382,7 +2445,11 @@
         function showSettings() {
             const overlay = document.getElementById('settings-overlay');
             const input = document.getElementById('api-key-input');
+            const baiduApiKeyInput = document.getElementById('baidu-api-key-input');
+            const baiduSecretKeyInput = document.getElementById('baidu-secret-key-input');
             input.value = AI_CONFIG.apiKey;
+            baiduApiKeyInput.value = AI_CONFIG.baiduApiKey;
+            baiduSecretKeyInput.value = AI_CONFIG.baiduSecretKey;
             overlay.classList.add('show');
             lucide.createIcons();
         }
@@ -2394,16 +2461,25 @@
 
         function saveApiKey() {
             const input = document.getElementById('api-key-input');
-            const apiKey = input.value.trim();
+            const baiduApiKeyInput = document.getElementById('baidu-api-key-input');
+            const baiduSecretKeyInput = document.getElementById('baidu-secret-key-input');
             
-            if (apiKey) {
-                AI_CONFIG.apiKey = apiKey;
-                localStorage.setItem('warmHeartApiKey', apiKey);
-                hideSettings();
-                showToast('API Key 已保存！');
-            } else {
-                showToast('请输入有效的 API Key');
-            }
+            const apiKey = input.value.trim();
+            const baiduApiKey = baiduApiKeyInput.value.trim();
+            const baiduSecretKey = baiduSecretKeyInput.value.trim();
+            
+            AI_CONFIG.apiKey = apiKey;
+            AI_CONFIG.baiduApiKey = baiduApiKey;
+            AI_CONFIG.baiduSecretKey = baiduSecretKey;
+            
+            localStorage.setItem('warmHeartApiKey', apiKey);
+            localStorage.setItem('warmHeartBaiduApiKey', baiduApiKey);
+            localStorage.setItem('warmHeartBaiduSecretKey', baiduSecretKey);
+            
+            AI_CONFIG.baiduAccessToken = null;
+            
+            hideSettings();
+            showToast('设置已保存！');
         }
 
         let morningChecked = false;
