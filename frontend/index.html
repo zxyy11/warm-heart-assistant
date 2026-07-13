@@ -2120,16 +2120,13 @@
         };
 
         function getDailyFoodRecommendations() {
-            const now = new Date();
-            const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
-            
-            const getRandomIndex = (arr, offset) => {
-                return (offset + Math.floor(Math.random() * 3)) % arr.length;
+            const getRandomIndex = (arr) => {
+                return Math.floor(Math.random() * arr.length);
             };
 
-            const morningIndex = getRandomIndex(foodRecommendations.morning, dayOfYear);
-            const afternoonIndex = getRandomIndex(foodRecommendations.afternoon, dayOfYear + 5);
-            const eveningIndex = getRandomIndex(foodRecommendations.evening, dayOfYear + 10);
+            const morningIndex = getRandomIndex(foodRecommendations.morning);
+            const afternoonIndex = getRandomIndex(foodRecommendations.afternoon);
+            const eveningIndex = getRandomIndex(foodRecommendations.evening);
 
             const morningFood = foodRecommendations.morning[morningIndex];
             const afternoonFood = foodRecommendations.afternoon[afternoonIndex];
