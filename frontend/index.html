@@ -2355,6 +2355,16 @@
 
         updateWeatherUI();
 
+        let isRecording = false;
+        let recognition = null;
+        let recordedText = '';
+        let audioContext = null;
+        let audioSource = null;
+        let audioScriptProcessor = null;
+        let audioBuffer = [];
+        let audioStream = null;
+        let currentVoice = null;
+
         function isMobileDevice() {
             return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         }
@@ -2368,18 +2378,41 @@
             const phone = AI_CONFIG.emergencyPhone.replace(/\s/g, '');
             
             if (isMobileDevice()) {
-                const a = document.createElement('a');
-                a.href = `tel:${phone}`;
-                a.style.display = 'none';
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                }, 100);
+                let called = false;
+                
+                const methods = [
+                    () => {
+                        const a = document.createElement('a');
+                        a.href = `tel:${phone}`;
+                        a.style.display = 'none';
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => {
+                            document.body.removeChild(a);
+                        }, 100);
+                        called = true;
+                    },
+                    () => {
+                        window.location.href = `tel:${phone}`;
+                        called = true;
+                    },
+                    () => {
+                        window.open(`tel:${phone}`);
+                        called = true;
+                    }
+                ];
+                
+                methods[0]();
                 
                 setTimeout(() => {
-                    window.location.href = `tel:${phone}`;
+                    if (!called) methods[1]();
                 }, 500);
+                
+                setTimeout(() => {
+                    if (!called) methods[2]();
+                }, 1000);
+                
+                showToast(`正在拨打 ${phone}...`);
             } else {
                 const message = `紧急联系人电话：${phone}\n点击确定复制到剪贴板`;
                 if (confirm(message)) {
@@ -2502,6 +2535,15 @@
         async function speak(text) {
             if (!voiceEnabled) return;
             
+            if ('speechSynthesis' in window) {
+                try {
+                    await speakWithBrowser(text);
+                    return;
+                } catch (error) {
+                    console.error('浏览器语音合成失败，尝试百度语音:', error);
+                }
+            }
+            
             if (AI_CONFIG.baiduApiKey && AI_CONFIG.baiduSecretKey) {
                 try {
                     const token = await getBaiduAccessToken();
@@ -2510,12 +2552,8 @@
                         return;
                     }
                 } catch (error) {
-                    console.error('百度语音合成失败，降级到浏览器语音:', error);
+                    console.error('百度语音合成失败:', error);
                 }
-            }
-            
-            if ('speechSynthesis' in window) {
-                await speakWithBrowser(text);
             }
         }
 
@@ -3232,15 +3270,6 @@
                 callEmergencyContact();
             }, 1500);
         }
-
-        let isRecording = false;
-        let recognition = null;
-        let recordedText = '';
-        let audioContext = null;
-        let audioSource = null;
-        let audioScriptProcessor = null;
-        let audioBuffer = [];
-        let audioStream = null;
 
         const DIALECTS = {
             'zh': { name: '普通话', pid: 1537 },
