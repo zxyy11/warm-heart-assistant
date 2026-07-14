@@ -2974,6 +2974,11 @@
             const wrapper = document.querySelector('.device-wrapper');
             if (!device || !wrapper) return;
 
+            if (window.innerWidth <= 420) {
+                device.style.transform = 'none';
+                return;
+            }
+
             const deviceWidth = 390;
             const deviceHeight = 844;
             const wrapperWidth = wrapper.clientWidth;
