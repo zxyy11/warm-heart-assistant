@@ -155,6 +155,9 @@ app.post('/api/speech-recognition', async (req, res) => {
     }
     
     const pid = dialect || 1537;
+    const audioBytes = Buffer.from(audioBase64, 'base64');
+    
+    console.log(`语音识别请求 - 音频字节数: ${audioBytes.length}, dialect: ${pid}`);
     
     try {
         const response = await axios.post(
@@ -163,7 +166,7 @@ app.post('/api/speech-recognition', async (req, res) => {
                 format: 'wav',
                 rate: 16000,
                 channel: 1,
-                len: audioBase64.length,
+                len: audioBytes.length,
                 speech: audioBase64,
                 cuid: 'web_assistant',
                 token: token,
@@ -172,14 +175,19 @@ app.post('/api/speech-recognition', async (req, res) => {
             {
                 headers: {
                     'Content-Type': 'application/json'
-                }
+                },
+                timeout: 30000
             }
         );
         
+        console.log(`语音识别响应 - err_no: ${response.data.err_no}, err_msg: ${response.data.err_msg}`);
         res.json(response.data);
     } catch (error) {
         console.error('语音识别失败:', error.message);
-        res.status(500).json({ error: '语音识别失败' });
+        if (error.response) {
+            console.error('百度API响应:', error.response.data);
+        }
+        res.status(500).json({ error: '语音识别失败', detail: error.message });
     }
 });
 
