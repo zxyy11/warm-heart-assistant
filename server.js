@@ -1,14 +1,49 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-require('dotenv').config();
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(express.static('frontend'));
+
+let tokenCache = {};
+
+async function getBaiduToken(apiKey, secretKey) {
+    const cacheKey = `${apiKey}:${secretKey}`;
+    const now = Date.now();
+    
+    if (tokenCache[cacheKey] && tokenCache[cacheKey].expireTime > now) {
+        return tokenCache[cacheKey].token;
+    }
+    
+    try {
+        const response = await axios.post('https://aip.baidubce.com/oauth/2.0/token', 
+            `grant_type=client_credentials&client_id=${apiKey}&client_secret=${secretKey}`,
+            {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            }
+        );
+        
+        if (response.data.access_token) {
+            tokenCache[cacheKey] = {
+                token: response.data.access_token,
+                expireTime: now + (response.data.expires_in - 60) * 1000
+            };
+            return response.data.access_token;
+        }
+        return null;
+    } catch (error) {
+        console.error('获取百度Token失败:', error.message);
+        return null;
+    }
+}
 
 const SYSTEM_PROMPT = `你是小暖，一个专为老年人设计的贴心助手。你的性格温暖、亲切、耐心。
 
@@ -91,6 +126,97 @@ app.post('/api/chat', async (req, res) => {
             message: 'API调用失败，请稍后重试',
             error: error.message
         });
+    }
+});
+
+app.post('/api/baidu-token', async (req, res) => {
+    const { apiKey, secretKey } = req.body;
+    if (!apiKey || !secretKey) {
+        return res.status(400).json({ error: '缺少API Key或Secret Key' });
+    }
+    
+    const token = await getBaiduToken(apiKey, secretKey);
+    if (token) {
+        res.json({ access_token: token });
+    } else {
+        res.status(500).json({ error: '获取Token失败' });
+    }
+});
+
+app.post('/api/speech-recognition', async (req, res) => {
+    const { audioBase64, apiKey, secretKey, dialect } = req.body;
+    if (!audioBase64 || !apiKey || !secretKey) {
+        return res.status(400).json({ error: '缺少参数' });
+    }
+    
+    const token = await getBaiduToken(apiKey, secretKey);
+    if (!token) {
+        return res.status(500).json({ error: '获取Token失败' });
+    }
+    
+    const pid = dialect || 1537;
+    
+    try {
+        const response = await axios.post(
+            'https://vop.baidu.com/server_api',
+            {
+                format: 'wav',
+                rate: 16000,
+                channel: 1,
+                len: audioBase64.length,
+                speech: audioBase64,
+                cuid: 'web_assistant',
+                token: token,
+                pid: pid
+            },
+            {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        
+        res.json(response.data);
+    } catch (error) {
+        console.error('语音识别失败:', error.message);
+        res.status(500).json({ error: '语音识别失败' });
+    }
+});
+
+app.get('/api/speech-synthesis', async (req, res) => {
+    const { text, apiKey, secretKey } = req.query;
+    if (!text || !apiKey || !secretKey) {
+        return res.status(400).json({ error: '缺少参数' });
+    }
+    
+    const token = await getBaiduToken(apiKey, secretKey);
+    if (!token) {
+        return res.status(500).json({ error: '获取Token失败' });
+    }
+    
+    try {
+        const response = await axios.get(
+            'https://tsn.baidu.com/text2audio',
+            {
+                params: {
+                    tex: text,
+                    tok: token,
+                    ctp: 1,
+                    lan: 'zh',
+                    spd: 5,
+                    pit: 5,
+                    vol: 5,
+                    per: 0
+                },
+                responseType: 'stream'
+            }
+        );
+        
+        res.setHeader('Content-Type', 'audio/mp3');
+        response.data.pipe(res);
+    } catch (error) {
+        console.error('语音合成失败:', error.message);
+        res.status(500).json({ error: '语音合成失败' });
     }
 });
 
