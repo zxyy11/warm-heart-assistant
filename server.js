@@ -211,10 +211,10 @@ app.get('/api/speech-synthesis', async (req, res) => {
                     tok: token,
                     ctp: 1,
                     lan: 'zh',
-                    spd: 5,
-                    pit: 5,
+                    spd: 4,
+                    pit: 7,
                     vol: 5,
-                    per: 0
+                    per: 5
                 },
                 responseType: 'stream'
             }

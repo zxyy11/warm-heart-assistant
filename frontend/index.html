@@ -2502,11 +2502,6 @@
         async function speak(text) {
             if (!voiceEnabled) return;
             
-            if ('speechSynthesis' in window) {
-                await speakWithBrowser(text);
-                return;
-            }
-            
             if (AI_CONFIG.baiduApiKey && AI_CONFIG.baiduSecretKey) {
                 try {
                     const token = await getBaiduAccessToken();
@@ -2515,8 +2510,12 @@
                         return;
                     }
                 } catch (error) {
-                    console.error('百度语音合成失败:', error);
+                    console.error('百度语音合成失败，降级到浏览器语音:', error);
                 }
+            }
+            
+            if ('speechSynthesis' in window) {
+                await speakWithBrowser(text);
             }
         }
 
@@ -2568,7 +2567,7 @@
         async function speakWithBaidu(text, token) {
             if (!token) return;
             
-            const maxLength = 150;
+            const maxLength = 100;
             const segments = [];
             let currentSegment = '';
             
@@ -2586,21 +2585,51 @@
                 segments.push(currentSegment);
             }
             
-            for (const segment of segments) {
-                await new Promise((resolve) => {
-                    const audioUrl = `/api/speech-synthesis?text=${encodeURIComponent(segment)}&apiKey=${AI_CONFIG.baiduApiKey}&secretKey=${AI_CONFIG.baiduSecretKey}`;
-                    const audio = new Audio(audioUrl);
-                    audio.onended = resolve;
-                    audio.onerror = () => {
-                        console.error('百度语音合成播放失败');
-                        resolve();
-                    };
-                    audio.play().catch(() => {
-                        console.error('百度语音播放被阻止');
-                        resolve();
-                    });
-                });
-                await new Promise(resolve => setTimeout(resolve, 200));
+            for (let index = 0; index < segments.length; index++) {
+                const segment = segments[index];
+                let retries = 3;
+                
+                while (retries > 0) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const audioUrl = `/api/speech-synthesis?text=${encodeURIComponent(segment)}&apiKey=${AI_CONFIG.baiduApiKey}&secretKey=${AI_CONFIG.baiduSecretKey}&t=${Date.now()}`;
+                            const audio = new Audio(audioUrl);
+                            
+                            audio.preload = 'auto';
+                            audio.onloadedmetadata = () => {
+                                audio.play().catch(err => {
+                                    console.error('百度语音播放被阻止:', err);
+                                    reject(err);
+                                });
+                            };
+                            audio.onended = () => {
+                                resolve();
+                            };
+                            audio.onerror = () => {
+                                console.error('百度语音合成播放失败');
+                                reject(new Error('Audio playback failed'));
+                            };
+                            audio.ontimeout = () => {
+                                console.error('百度语音加载超时');
+                                reject(new Error('Audio timeout'));
+                            };
+                        });
+                        break;
+                    } catch (error) {
+                        retries--;
+                        console.error(`百度语音合成失败，重试 ${3 - retries}/3:`, error);
+                        if (retries > 0) {
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        } else {
+                            console.error('百度语音合成多次失败，跳过此段');
+                            break;
+                        }
+                    }
+                }
+                
+                if (index < segments.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
             }
         }
 
@@ -2921,19 +2950,27 @@
 
         window.addEventListener('resize', resizeDevice);
         setTimeout(resizeDevice, 100);
+        startCheckinTimeoutMonitor();
 
         function switchTab(tabName) {
             document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-            event.currentTarget.classList.add('active');
+            if (event && event.currentTarget) {
+                event.currentTarget.classList.add('active');
+            }
             
             document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
-            document.getElementById(`${tabName}-page`).classList.add('active');
+            const targetPage = document.getElementById(`${tabName}-page`);
+            if (targetPage) {
+                targetPage.classList.add('active');
+            }
             
             const voiceBar = document.getElementById('voice-input-bar');
-            if (tabName === 'assistant') {
-                voiceBar.classList.add('show');
-            } else {
-                voiceBar.classList.remove('show');
+            if (voiceBar) {
+                if (tabName === 'assistant') {
+                    voiceBar.classList.add('show');
+                } else {
+                    voiceBar.classList.remove('show');
+                }
             }
         }
 
@@ -3028,6 +3065,9 @@
         }
 
         let morningChecked = false;
+        let afternoonChecked = false;
+        let eveningChecked = false;
+        let checkinTimeoutTimer = null;
 
         function checkIn(timeOfDay) {
             const btn = document.getElementById(`${timeOfDay}-btn`);
@@ -3058,7 +3098,81 @@
             
             if (timeOfDay === 'morning') {
                 morningChecked = true;
+            } else if (timeOfDay === 'afternoon') {
+                afternoonChecked = true;
+            } else if (timeOfDay === 'evening') {
+                eveningChecked = true;
             }
+        }
+
+        function sendSmsToChild(message) {
+            if (!AI_CONFIG.emergencyPhone) {
+                showToast('请先在设置中配置子女电话');
+                return;
+            }
+            
+            const phone = AI_CONFIG.emergencyPhone.replace(/\s/g, '');
+            
+            if (isMobileDevice()) {
+                const smsUrl = `sms:${phone}?body=${encodeURIComponent(message)}`;
+                const a = document.createElement('a');
+                a.href = smsUrl;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                }, 100);
+                
+                setTimeout(() => {
+                    window.location.href = smsUrl;
+                }, 500);
+            } else {
+                showToast(`短信内容：${message}\n请发送给：${phone}`);
+                navigator.clipboard.writeText(message).then(() => {
+                    showToast('短信内容已复制');
+                }).catch(() => {
+                    showToast('复制失败');
+                });
+            }
+        }
+
+        function checkCheckinTimeout() {
+            const now = new Date();
+            const hour = now.getHours();
+            
+            let timeoutMessage = '';
+            
+            if (hour >= 9 && hour < 11 && !morningChecked) {
+                timeoutMessage = '爸爸早晨还未打卡，请关心一下爸爸的情况';
+            } else if (hour >= 13 && hour < 17 && !afternoonChecked) {
+                timeoutMessage = '爸爸中午还未打卡，请关心一下爸爸的情况';
+            } else if (hour >= 20 && hour < 24 && !eveningChecked) {
+                timeoutMessage = '爸爸晚上还未打卡，请关心一下爸爸的情况';
+            }
+            
+            if (timeoutMessage) {
+                const cardId = morningChecked ? (afternoonChecked ? 'evening-card' : 'afternoon-card') : 'morning-card';
+                const card = document.getElementById(cardId);
+                if (card) {
+                    card.classList.add('timeout-warning');
+                }
+                
+                sendSmsToChild(timeoutMessage);
+                showVoiceBubble('爷爷，您还没有打卡哦，我已经告诉女儿了');
+            }
+        }
+
+        function startCheckinTimeoutMonitor() {
+            if (checkinTimeoutTimer) {
+                clearInterval(checkinTimeoutTimer);
+            }
+            
+            checkinTimeoutTimer = setInterval(() => {
+                checkCheckinTimeout();
+            }, 60000);
+            
+            checkCheckinTimeout();
         }
 
         setTimeout(() => {
@@ -3111,6 +3225,8 @@
         function triggerSOS() {
             document.getElementById('sos-overlay').classList.add('show');
             speak('紧急求救已发送，正在联系您的家人');
+            
+            sendSmsToChild('紧急情况！爸爸正在使用暖心小助手的紧急求助功能，请立即联系！');
             
             setTimeout(() => {
                 callEmergencyContact();
@@ -3171,7 +3287,10 @@
                 recognition.onerror = function(event) {
                     console.error('语音识别错误:', event.error);
                     isRecording = false;
-                    document.getElementById('btn-voice-input').classList.remove('recording');
+                    const voiceBtn = document.getElementById('btn-voice-input');
+                    if (voiceBtn) {
+                        voiceBtn.classList.remove('recording');
+                    }
                     if (event.error === 'not-allowed') {
                         showToast('请允许麦克风权限');
                     } else {
@@ -3182,7 +3301,10 @@
                 recognition.onend = function() {
                     if (isRecording) {
                         isRecording = false;
-                        document.getElementById('btn-voice-input').classList.remove('recording');
+                        const voiceBtn = document.getElementById('btn-voice-input');
+                        if (voiceBtn) {
+                            voiceBtn.classList.remove('recording');
+                        }
                         if (recordedText) {
                             handleVoiceResult(recordedText);
                         } else {
@@ -3234,8 +3356,14 @@
             
             isRecording = true;
             recordedText = '';
-            document.getElementById('btn-voice-input').classList.add('recording');
-            document.getElementById('chat-input').value = '';
+            const voiceBtn = document.getElementById('btn-voice-input');
+            if (voiceBtn) {
+                voiceBtn.classList.add('recording');
+            }
+            const chatInput = document.getElementById('chat-input');
+            if (chatInput) {
+                chatInput.value = '';
+            }
             audioBuffer = [];
             
             if (AI_CONFIG.baiduApiKey && AI_CONFIG.baiduSecretKey) {
@@ -3270,7 +3398,9 @@
                 } catch (err) {
                     console.error('麦克风权限获取失败:', err);
                     isRecording = false;
-                    document.getElementById('btn-voice-input').classList.remove('recording');
+                    if (voiceBtn) {
+                        voiceBtn.classList.remove('recording');
+                    }
                     showToast('请允许麦克风权限');
                 }
             } else {
@@ -3282,7 +3412,10 @@
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
                 isRecording = false;
-                document.getElementById('btn-voice-input').classList.remove('recording');
+                const voiceBtn = document.getElementById('btn-voice-input');
+                if (voiceBtn) {
+                    voiceBtn.classList.remove('recording');
+                }
                 showToast('您的浏览器不支持语音识别，请使用Chrome浏览器');
                 return;
             }
@@ -3297,17 +3430,25 @@
             } catch (err) {
                 console.error('启动语音识别失败:', err);
                 isRecording = false;
-                document.getElementById('btn-voice-input').classList.remove('recording');
+                const voiceBtn = document.getElementById('btn-voice-input');
+                if (voiceBtn) {
+                    voiceBtn.classList.remove('recording');
+                }
                 showToast('语音识别启动失败');
             }
         }
 
         function endVoiceRecording(e) {
             if (!isRecording) return;
-            e.preventDefault();
+            if (e) {
+                e.preventDefault();
+            }
             
             isRecording = false;
-            document.getElementById('btn-voice-input').classList.remove('recording');
+            const voiceBtn = document.getElementById('btn-voice-input');
+            if (voiceBtn) {
+                voiceBtn.classList.remove('recording');
+            }
             
             if (audioScriptProcessor) {
                 audioScriptProcessor.disconnect();
