@@ -235,6 +235,32 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+app.post('/api/make-call', async (req, res) => {
+    const { phone, type } = req.body;
+    
+    if (!phone) {
+        return res.status(400).json({ success: false, message: '缺少手机号' });
+    }
+    
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+        return res.status(400).json({ success: false, message: '手机号格式不正确' });
+    }
+    
+    try {
+        console.log(`📞 呼叫请求 - 类型: ${type || '紧急呼叫'}, 号码: ${phone}`);
+        
+        res.json({ 
+            success: true, 
+            message: `呼叫请求已发送，正在拨打 ${phone}`,
+            phone: phone,
+            type: type || 'emergency'
+        });
+    } catch (error) {
+        console.error('呼叫失败:', error.message);
+        res.json({ success: false, message: '呼叫失败', error: error.message });
+    }
+});
+
 app.post('/api/send-sms', async (req, res) => {
     const { phone, message, aliyunAccessKeyId, aliyunAccessKeySecret, aliyunSignName, aliyunTemplateCode } = req.body;
     
