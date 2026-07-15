@@ -2815,6 +2815,27 @@
             throw new Error('无法生成打车链接');
         }
 
+        async function createRideOrder(traceId, fromLng, fromLat, toLng, toLat, productId = 'express') {
+            const result = await callDidiMCP('taxi_create_order', {
+                trace_id: traceId,
+                from_lng: fromLng,
+                from_lat: fromLat,
+                to_lng: toLng,
+                to_lat: toLat,
+                product_id: productId
+            });
+            
+            return result;
+        }
+
+        async function queryRideOrder(orderId) {
+            const result = await callDidiMCP('taxi_query_order', {
+                order_id: orderId
+            });
+            
+            return result;
+        }
+
         async function callAI(message) {
             const provider = AI_PROVIDERS[AI_CONFIG.provider] || AI_PROVIDERS.agnes;
             const url = `${provider.baseURL}/chat/completions`;
@@ -3801,9 +3822,6 @@
                 try {
                     speak(`正在为您查询去${rideDestination}的路线...`);
                     
-                    let replyText = '';
-                    let rideLink = '';
-                    
                     if (AI_CONFIG.didiMcpKey) {
                         const destination = await searchPlace(rideDestination);
                         const toLng = destination.location.split(',')[0];
@@ -3815,26 +3833,115 @@
                         const estimateResult = await estimatePrice(fromLng, fromLat, toLng, toLat);
                         const estimateText = estimateResult.content?.[0]?.text || '';
                         
-                        rideLink = await generateRideLink(fromLng, fromLat, toLng, toLat);
+                        let traceId = '';
+                        if (estimateResult.structuredContent && estimateResult.structuredContent.traceId) {
+                            traceId = estimateResult.structuredContent.traceId;
+                        } else {
+                            const contentText = estimateResult.content?.[0]?.text || '';
+                            const traceMatch = contentText.match(/traceId:\s*([^\s]+)/);
+                            if (traceMatch) {
+                                traceId = traceMatch[1];
+                            }
+                        }
                         
-                        replyText = `爷爷，已经为您查到去${destination.name}的路线啦！\n${estimateText}\n正在为您打开滴滴App，请稍等...`;
+                        chatArea.removeChild(typing);
+                        
+                        const reply = document.createElement('div');
+                        reply.className = 'chat-bubble assistant';
+                        reply.innerHTML = `<div class="chat-text">爷爷，已经为您查到去${destination.name}的路线啦！\n${estimateText}\n正在为您下单叫车，请稍等...</div>`;
+                        chatArea.appendChild(reply);
+                        chatArea.scrollTop = chatArea.scrollHeight;
+                        speak(`爷爷，已经为您查到去${destination.name}的路线啦！${estimateText}正在为您下单叫车，请稍等...`);
+                        
+                        if (traceId) {
+                            const orderResult = await createRideOrder(traceId, fromLng, fromLat, toLng, toLat);
+                            
+                            let orderId = '';
+                            if (orderResult.structuredContent && orderResult.structuredContent.orderId) {
+                                orderId = orderResult.structuredContent.orderId;
+                            } else {
+                                const orderText = orderResult.content?.[0]?.text || '';
+                                const orderMatch = orderText.match(/orderId:\s*([^\s]+)/);
+                                if (orderMatch) {
+                                    orderId = orderMatch[1];
+                                }
+                            }
+                            
+                            if (orderId) {
+                                speak('订单已创建，正在查询司机信息...');
+                                
+                                let driverInfo = null;
+                                let retryCount = 0;
+                                const maxRetries = 10;
+                                
+                                while (!driverInfo && retryCount < maxRetries) {
+                                    await new Promise(resolve => setTimeout(resolve, 3000));
+                                    retryCount++;
+                                    
+                                    const queryResult = await queryRideOrder(orderId);
+                                    const structured = queryResult.structuredContent;
+                                    
+                                    if (structured) {
+                                        if (structured.driverInfo && structured.driverInfo.plateNumber) {
+                                            driverInfo = {
+                                                plateNumber: structured.driverInfo.plateNumber,
+                                                driverName: structured.driverInfo.driverName || '',
+                                                driverPhone: structured.driverInfo.driverPhone || '',
+                                                estimatedArrival: structured.estimatedArrival || ''
+                                            };
+                                        } else if (structured.plateNumber) {
+                                            driverInfo = {
+                                                plateNumber: structured.plateNumber,
+                                                driverName: structured.driverName || '',
+                                                driverPhone: structured.driverPhone || '',
+                                                estimatedArrival: structured.estimatedArrival || ''
+                                            };
+                                        }
+                                    }
+                                }
+                                
+                                if (driverInfo) {
+                                    const driverText = `爷爷，车已经叫到啦！\n车牌号：${driverInfo.plateNumber}\n${driverInfo.driverName ? '司机：' + driverInfo.driverName + '\n' : ''}${driverInfo.estimatedArrival ? '预计到达时间：' + driverInfo.estimatedArrival + '\n' : ''}您可以在楼下等车了！`;
+                                    
+                                    const driverReply = document.createElement('div');
+                                    driverReply.className = 'chat-bubble assistant';
+                                    driverReply.innerHTML = `<div class="chat-text">${driverText}</div>`;
+                                    chatArea.appendChild(driverReply);
+                                    chatArea.scrollTop = chatArea.scrollHeight;
+                                    speak(driverText);
+                                } else {
+                                    const waitText = `爷爷，订单已创建成功！订单号：${orderId}\n司机正在赶来，请稍等一下，我会帮您留意司机信息。`;
+                                    
+                                    const waitReply = document.createElement('div');
+                                    waitReply.className = 'chat-bubble assistant';
+                                    waitReply.innerHTML = `<div class="chat-text">${waitText}</div>`;
+                                    chatArea.appendChild(waitReply);
+                                    chatArea.scrollTop = chatArea.scrollHeight;
+                                    speak(waitText);
+                                }
+                            } else {
+                                throw new Error('无法获取订单号');
+                            }
+                        } else {
+                            throw new Error('无法获取traceId');
+                        }
                     } else {
-                        rideLink = `diditaxi://www.didichuxing.com/open?type=ride&dest=${encodeURIComponent(rideDestination)}`;
-                        replyText = `爷爷，我来帮您打开滴滴App去${rideDestination}！请在滴滴App中确认地址后下单，账单会自动发到女儿的账号上哦。`;
+                        const rideLink = `diditaxi://www.didichuxing.com/open?type=ride&dest=${encodeURIComponent(rideDestination)}`;
+                        const replyText = `爷爷，我来帮您打开滴滴App去${rideDestination}！请在滴滴App中确认地址后下单，账单会自动发到女儿的账号上哦。`;
+                        
+                        chatArea.removeChild(typing);
+                        
+                        const reply = document.createElement('div');
+                        reply.className = 'chat-bubble assistant';
+                        reply.innerHTML = `<div class="chat-text">${replyText}</div>`;
+                        chatArea.appendChild(reply);
+                        chatArea.scrollTop = chatArea.scrollHeight;
+                        speak(replyText);
+                        
+                        setTimeout(() => {
+                            window.location.href = rideLink;
+                        }, 2000);
                     }
-                    
-                    chatArea.removeChild(typing);
-                    
-                    const reply = document.createElement('div');
-                    reply.className = 'chat-bubble assistant';
-                    reply.innerHTML = `<div class="chat-text">${replyText}</div>`;
-                    chatArea.appendChild(reply);
-                    chatArea.scrollTop = chatArea.scrollHeight;
-                    speak(replyText);
-                    
-                    setTimeout(() => {
-                        window.location.href = rideLink;
-                    }, 2000);
                     
                 } catch (error) {
                     chatArea.removeChild(typing);
