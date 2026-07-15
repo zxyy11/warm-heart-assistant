@@ -106,8 +106,8 @@
            ======================================== */
 
         .device-wrapper {
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -115,6 +115,7 @@
             margin: 0;
             box-sizing: border-box;
             overflow: hidden;
+            position: relative;
         }
 
         .device-frame {
@@ -131,10 +132,6 @@
             overflow: hidden;
             transform-origin: center center;
             flex-shrink: 0;
-            margin: 0;
-            padding: 0;
-            max-width: 100vw;
-            max-height: 100vh;
         }
 
         .device-notch {
@@ -3063,13 +3060,11 @@
             const scaleY = availableHeight / deviceHeight;
             const scale = Math.min(scaleX, scaleY, 1);
 
-            const scaledWidth = deviceWidth * scale;
-            const scaledHeight = deviceHeight * scale;
-
-            device.style.width = `${scaledWidth}px`;
-            device.style.height = `${scaledHeight}px`;
-            device.style.transform = 'none';
-            device.style.borderRadius = `${48 * scale}px`;
+            device.style.width = '390px';
+            device.style.height = '844px';
+            device.style.borderRadius = '48px';
+            device.style.transform = `scale(${scale})`;
+            device.style.transformOrigin = 'center center';
         }
 
         window.addEventListener('resize', resizeDevice);
