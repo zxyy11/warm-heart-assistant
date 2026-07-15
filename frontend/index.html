@@ -2135,6 +2135,18 @@
     <script>
         lucide.createIcons();
 
+        let isRecording = false;
+        let recognition = null;
+        let recordedText = '';
+        let audioContext = null;
+        let audioSource = null;
+        let audioScriptProcessor = null;
+        let audioBuffer = [];
+        let audioStream = null;
+        let currentVoice = null;
+        let voiceEnabled = true;
+        let checkinTimeoutTimer = null;
+
         function setCurrentDate() {
             const now = new Date();
             const month = now.getMonth() + 1;
@@ -2325,16 +2337,6 @@
 
         updateWeatherUI();
 
-        let isRecording = false;
-        let recognition = null;
-        let recordedText = '';
-        let audioContext = null;
-        let audioSource = null;
-        let audioScriptProcessor = null;
-        let audioBuffer = [];
-        let audioStream = null;
-        let currentVoice = null;
-
         function isMobileDevice() {
             return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         }
@@ -2412,9 +2414,6 @@
                 model: 'deepseek-v4-flash'
             }
         };
-
-        let voiceEnabled = true;
-        let currentVoice = null;
 
         function loadVoices() {
             const voices = window.speechSynthesis.getVoices();
@@ -3075,7 +3074,6 @@
         let morningChecked = false;
         let afternoonChecked = false;
         let eveningChecked = false;
-        let checkinTimeoutTimer = null;
 
         function checkIn(timeOfDay) {
             const btn = document.getElementById(`${timeOfDay}-btn`);
