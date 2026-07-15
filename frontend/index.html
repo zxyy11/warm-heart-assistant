@@ -3802,23 +3802,22 @@
             chatArea.scrollTop = chatArea.scrollHeight;
             speak('好的，爷爷！请问您想去哪里呢？');
             
-            rideDestination = '';
+            rideDestination = 'awaiting';
         }
 
         async function handleRideHailing(message) {
             const chatArea = document.getElementById('chat-area');
             
-            if (!rideDestination) {
-                rideDestination = message;
-                
-                const typing = document.createElement('div');
-                typing.className = 'typing-indicator';
-                typing.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
-                chatArea.appendChild(typing);
-                chatArea.scrollTop = chatArea.scrollHeight;
-                
-                try {
-                    speak(`正在为您查询去${rideDestination}的路线...`);
+            rideDestination = message;
+            
+            const typing = document.createElement('div');
+            typing.className = 'typing-indicator';
+            typing.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+            chatArea.appendChild(typing);
+            chatArea.scrollTop = chatArea.scrollHeight;
+            
+            try {
+                speak(`正在为您查询去${rideDestination}的路线...`);
                     
                     if (AI_CONFIG.didiMcpKey) {
                         const destination = await searchPlace(rideDestination);
@@ -3959,6 +3958,8 @@
                     }, 2000);
                 }
                 }
+                
+                rideDestination = '';
         }
 
         function handleChatInputKey(event) {
@@ -3995,8 +3996,9 @@
                     chatArea.removeChild(typing);
                     rideDestination = '';
                     startRideHailing();
-                } else if (rideDestination !== '') {
+                } else if (rideDestination === 'awaiting') {
                     chatArea.removeChild(typing);
+                    rideDestination = message;
                     await handleRideHailing(message);
                 } else {
                     await new Promise(resolve => setTimeout(resolve, 500));
