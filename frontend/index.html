@@ -95,7 +95,8 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
-            overflow: hidden;
+            overflow: auto;
+            min-height: 100vh;
         }
 
         /* ========================================
@@ -1767,56 +1768,6 @@
         /* ========================================
            响应式设计
            ======================================== */
-
-        @media (max-width: 480px) {
-            .device-wrapper {
-                width: 100%;
-                height: 100%;
-                padding: 0;
-                margin: 0;
-                overflow: hidden;
-                display: block;
-                position: relative;
-            }
-            
-            .device-frame {
-                width: 100%;
-                height: 100%;
-                border-radius: 0;
-                box-shadow: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                transform: none;
-                flex-shrink: 1;
-                overflow: hidden;
-            }
-            
-            body {
-                padding: 0;
-                margin: 0;
-                background: #F8F4EF;
-                overflow: hidden;
-                display: block;
-            }
-
-            html {
-                overflow: hidden;
-            }
-
-            .device-notch {
-                display: none;
-            }
-            
-            .app-wrapper {
-                height: 100vh;
-            }
-            
-            .app-content {
-                height: calc(100vh - 47px - 84px);
-                overflow-y: auto;
-            }
-        }
     </style>
 </head>
 <body>
@@ -2992,11 +2943,6 @@
             const device = document.querySelector('.device-frame');
             const wrapper = document.querySelector('.device-wrapper');
             if (!device || !wrapper) return;
-
-            if (window.innerWidth <= 480) {
-                device.style.transform = 'none';
-                return;
-            }
 
             const deviceWidth = 390;
             const deviceHeight = 844;
