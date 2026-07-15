@@ -94,9 +94,11 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 20px;
-            overflow: auto;
-            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
         }
 
         /* ========================================
@@ -3048,14 +3050,16 @@
 
             const deviceWidth = 390;
             const deviceHeight = 844;
-            const availableWidth = window.innerWidth - 40;
-            const availableHeight = window.innerHeight - 40;
+            const availableWidth = window.innerWidth;
+            const availableHeight = window.innerHeight;
 
             const scaleX = availableWidth / deviceWidth;
             const scaleY = availableHeight / deviceHeight;
             const scale = Math.min(scaleX, scaleY, 1);
 
             device.style.transform = `scale(${scale})`;
+            device.style.maxWidth = `${availableWidth}px`;
+            device.style.maxHeight = `${availableHeight}px`;
         }
 
         window.addEventListener('resize', resizeDevice);
