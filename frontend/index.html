@@ -3929,7 +3929,8 @@
                             throw new Error('无法获取traceId');
                         }
                     } else {
-                        const rideLink = `diditaxi://www.didichuxing.com/open?type=ride&dest=${encodeURIComponent(rideDestination)}`;
+                        const didiLink = `diditaxi://www.didichuxing.com/open?type=ride&dest=${encodeURIComponent(rideDestination)}`;
+                        const webLink = `https://www.didichuxing.com/passenger?source=web&type=ride&dest=${encodeURIComponent(rideDestination)}`;
                         const replyText = `爷爷，我来帮您打开滴滴App去${rideDestination}！请在滴滴App中确认地址后下单，账单会自动发到女儿的账号上哦。`;
                         
                         chatArea.removeChild(typing);
@@ -3942,14 +3943,30 @@
                         speak(replyText);
                         
                         setTimeout(() => {
-                            window.location.href = rideLink;
+                            try {
+                                const a = document.createElement('a');
+                                a.href = didiLink;
+                                a.style.display = 'none';
+                                document.body.appendChild(a);
+                                a.click();
+                                setTimeout(() => {
+                                    document.body.removeChild(a);
+                                }, 100);
+                            } catch (e) {
+                                window.location.href = webLink;
+                            }
+                            
+                            setTimeout(() => {
+                                window.location.href = webLink;
+                            }, 1500);
                         }, 2000);
                     }
                     
                 } catch (error) {
                     chatArea.removeChild(typing);
                     
-                    const rideLink = `diditaxi://www.didichuxing.com/open?type=ride&dest=${encodeURIComponent(rideDestination)}`;
+                    const didiLink = `diditaxi://www.didichuxing.com/open?type=ride&dest=${encodeURIComponent(rideDestination)}`;
+                    const webLink = `https://www.didichuxing.com/passenger?source=web&type=ride&dest=${encodeURIComponent(rideDestination)}`;
                     const replyText = `爷爷，我来帮您打开滴滴App去${rideDestination}！请在滴滴App中确认地址后下单，账单会自动发到女儿的账号上哦。`;
                     
                     const reply = document.createElement('div');
@@ -3999,8 +4016,25 @@
             (async () => {
                 if (rideDestination === '' && (message.includes('叫车') || message.includes('打车') || message.includes('去'))) {
                     chatArea.removeChild(typing);
-                    rideDestination = '';
-                    startRideHailing();
+                    
+                    let destination = '';
+                    if (message.includes('去')) {
+                        const match = message.match(/去\s*([^\s]+)/);
+                        if (match) {
+                            destination = match[1];
+                        } else {
+                            const idx = message.indexOf('去');
+                            destination = message.substring(idx + 1).trim();
+                        }
+                    }
+                    
+                    if (destination) {
+                        rideDestination = destination;
+                        await handleRideHailing(destination);
+                    } else {
+                        rideDestination = 'awaiting';
+                        startRideHailing();
+                    }
                 } else if (rideDestination === 'awaiting') {
                     chatArea.removeChild(typing);
                     rideDestination = message;
