@@ -2732,22 +2732,17 @@
                 throw new Error('请先在设置中配置滴滴MCP Key');
             }
             
-            const url = `https://mcp.didichuxing.com/mcp-servers?key=${AI_CONFIG.didiMcpKey}`;
-            
-            const requestData = {
-                jsonrpc: '2.0',
-                method: method,
-                id: Date.now(),
-                params: params
-            };
-            
             try {
-                const response = await fetch(url, {
+                const response = await fetch('/api/didi-mcp', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json; charset=utf-8'
                     },
-                    body: JSON.stringify(requestData)
+                    body: JSON.stringify({
+                        key: AI_CONFIG.didiMcpKey,
+                        toolName: method,
+                        toolParams: params
+                    })
                 });
                 
                 const result = await response.json();
@@ -2756,7 +2751,7 @@
                     throw new Error(result.error.message || '滴滴API调用失败');
                 }
                 
-                return result.result;
+                return result;
             } catch (error) {
                 console.error('滴滴MCP API调用失败:', error);
                 throw error;

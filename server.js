@@ -326,6 +326,35 @@ app.post('/api/send-sms', async (req, res) => {
     }
 });
 
+app.post('/api/didi-mcp', async (req, res) => {
+    const { key, toolName, toolParams } = req.body;
+    
+    if (!key || !toolName) {
+        return res.status(400).json({ error: '缺少参数' });
+    }
+    
+    try {
+        const response = await axios.post(
+            `https://mcp.didichuxing.com/mcp-servers?key=${key}`,
+            {
+                tool_name: toolName,
+                tool_params: toolParams || {}
+            },
+            {
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                timeout: 30000
+            }
+        );
+        
+        res.json(response.data);
+    } catch (error) {
+        console.error('滴滴MCP调用失败:', error.message);
+        res.status(500).json({ error: '滴滴MCP调用失败', detail: error.message });
+    }
+});
+
 app.get('/api/weather', async (req, res) => {
     try {
         const { lat, lon, city } = req.query;
