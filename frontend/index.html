@@ -1675,7 +1675,7 @@
         .btn-save {
             width: 100%;
             height: 64px;
-            background: linear-gradient(135deg, var(--coral), var(--peach));
+            background: linear-gradient(135deg, #22C55E, #16A34A);
             border: none;
             border-radius: 20px;
             font-size: var(--font-xl);
@@ -1687,12 +1687,12 @@
             gap: 8px;
             cursor: pointer;
             transition: all 0.2s;
-            box-shadow: 0 8px 24px rgba(255, 138, 91, 0.3);
+            box-shadow: 0 8px 24px rgba(34, 197, 94, 0.4);
         }
 
         .btn-save:active {
             transform: scale(0.96);
-            box-shadow: 0 4px 12px rgba(255, 138, 91, 0.2);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
         }
 
         .btn-save svg {
@@ -2186,6 +2186,10 @@
         let currentVoice = null;
         let voiceEnabled = true;
         let checkinTimeoutTimer = null;
+        let morningChecked = false;
+        let afternoonChecked = false;
+        let eveningChecked = false;
+        let rideDestination = '';
 
         function setCurrentDate() {
             const now = new Date();
@@ -3201,10 +3205,6 @@
             }
         }
 
-        let morningChecked = false;
-        let afternoonChecked = false;
-        let eveningChecked = false;
-
         function checkIn(timeOfDay) {
             const btn = document.getElementById(`${timeOfDay}-btn`);
             const card = document.getElementById(`${timeOfDay}-card`);
@@ -3791,8 +3791,6 @@
                 }
             })();
         }
-
-        let rideDestination = '';
 
         async function startRideHailing() {
             const chatArea = document.getElementById('chat-area');
