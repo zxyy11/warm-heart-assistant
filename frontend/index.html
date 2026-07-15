@@ -1627,6 +1627,25 @@
             flex: 1;
         }
 
+        .setting-section {
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 2px solid rgba(255, 138, 91, 0.15);
+        }
+
+        .section-title {
+            font-size: var(--font-lg);
+            font-weight: 600;
+            color: var(--coral);
+            margin-bottom: 8px;
+        }
+
+        .section-desc {
+            font-size: var(--font-md);
+            color: var(--text-light);
+            margin-bottom: 20px;
+        }
+
         .input-toggle-btn {
             padding: 0 16px;
             height: 56px;
@@ -2093,6 +2112,27 @@
                     <input type="tel" class="setting-input" id="emergency-phone-input" placeholder="输入子女或紧急联系人电话">
                     <p class="setting-hint">紧急SOS和超时提醒时会拨打此号码</p>
                 </div>
+                <div class="setting-section">
+                    <h3 class="section-title">阿里云短信配置（可选）</h3>
+                    <p class="section-desc">配置后可自动发送短信给紧急联系人</p>
+                    <div class="setting-item">
+                        <label class="setting-label">AccessKey ID</label>
+                        <input type="password" class="setting-input" id="aliyun-access-key-id" placeholder="输入阿里云AccessKey ID">
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">AccessKey Secret</label>
+                        <input type="password" class="setting-input" id="aliyun-access-key-secret" placeholder="输入阿里云AccessKey Secret">
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">短信签名</label>
+                        <input type="text" class="setting-input" id="aliyun-sign-name" placeholder="输入短信签名">
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">短信模板ID</label>
+                        <input type="text" class="setting-input" id="aliyun-template-code" placeholder="输入短信模板ID">
+                    </div>
+                    <p class="setting-hint">注册地址：https://dysms.console.aliyun.com/</p>
+                </div>
                 <div class="setting-item">
                     <label class="setting-label">滴滴MCP Key（可选）</label>
                     <input type="password" class="setting-input" id="didi-mcp-key-input" placeholder="输入滴滴MCP Key">
@@ -2317,6 +2357,10 @@
         const savedDidiMcpKey = localStorage.getItem('warmHeartDidiMcpKey') || '';
         const savedWeatherApiKey = localStorage.getItem('warmHeartWeatherApiKey') || '';
         const savedCity = localStorage.getItem('warmHeartCity') || '北京';
+        const savedAliyunAccessKeyId = localStorage.getItem('warmHeartAliyunAccessKeyId') || '';
+        const savedAliyunAccessKeySecret = localStorage.getItem('warmHeartAliyunAccessKeySecret') || '';
+        const savedAliyunSignName = localStorage.getItem('warmHeartAliyunSignName') || '';
+        const savedAliyunTemplateCode = localStorage.getItem('warmHeartAliyunTemplateCode') || '';
         const AI_CONFIG = {
             provider: 'deepseek',
             baseURL: 'https://api.deepseek.com/v1',
@@ -2332,7 +2376,11 @@
             weatherApiKey: savedWeatherApiKey,
             city: savedCity,
             baiduAccessToken: null,
-            baiduTokenExpireTime: 0
+            baiduTokenExpireTime: 0,
+            aliyunAccessKeyId: savedAliyunAccessKeyId,
+            aliyunAccessKeySecret: savedAliyunAccessKeySecret,
+            aliyunSignName: savedAliyunSignName,
+            aliyunTemplateCode: savedAliyunTemplateCode
         };
 
         updateWeatherUI();
@@ -3003,6 +3051,11 @@
             const didiMcpKeyInput = document.getElementById('didi-mcp-key-input');
             const weatherApiKeyInput = document.getElementById('weather-api-key-input');
             const cityInput = document.getElementById('city-input');
+            const aliyunAccessKeyIdInput = document.getElementById('aliyun-access-key-id');
+            const aliyunAccessKeySecretInput = document.getElementById('aliyun-access-key-secret');
+            const aliyunSignNameInput = document.getElementById('aliyun-sign-name');
+            const aliyunTemplateCodeInput = document.getElementById('aliyun-template-code');
+            
             input.value = AI_CONFIG.apiKey;
             baiduApiKeyInput.value = AI_CONFIG.baiduApiKey;
             baiduSecretKeyInput.value = AI_CONFIG.baiduSecretKey;
@@ -3011,6 +3064,10 @@
             didiMcpKeyInput.value = AI_CONFIG.didiMcpKey || '';
             weatherApiKeyInput.value = AI_CONFIG.weatherApiKey || '';
             cityInput.value = AI_CONFIG.city || '北京';
+            aliyunAccessKeyIdInput.value = AI_CONFIG.aliyunAccessKeyId || '';
+            aliyunAccessKeySecretInput.value = AI_CONFIG.aliyunAccessKeySecret || '';
+            aliyunSignNameInput.value = AI_CONFIG.aliyunSignName || '';
+            aliyunTemplateCodeInput.value = AI_CONFIG.aliyunTemplateCode || '';
             
             document.getElementById('baidu-api-key-display').textContent = AI_CONFIG.baiduApiKey ? '已配置 (' + AI_CONFIG.baiduApiKey.substring(0, 8) + '...)' : '未配置';
             document.getElementById('baidu-secret-key-display').textContent = AI_CONFIG.baiduSecretKey ? '已配置 (' + AI_CONFIG.baiduSecretKey.substring(0, 8) + '...)' : '未配置';
@@ -3033,6 +3090,10 @@
             const didiMcpKeyInput = document.getElementById('didi-mcp-key-input');
             const weatherApiKeyInput = document.getElementById('weather-api-key-input');
             const cityInput = document.getElementById('city-input');
+            const aliyunAccessKeyIdInput = document.getElementById('aliyun-access-key-id');
+            const aliyunAccessKeySecretInput = document.getElementById('aliyun-access-key-secret');
+            const aliyunSignNameInput = document.getElementById('aliyun-sign-name');
+            const aliyunTemplateCodeInput = document.getElementById('aliyun-template-code');
             
             const apiKey = input.value.trim();
             const baiduApiKey = baiduApiKeyInput.value.trim();
@@ -3042,6 +3103,10 @@
             const didiMcpKey = didiMcpKeyInput.value.trim();
             const weatherApiKey = weatherApiKeyInput.value.trim();
             const city = cityInput.value.trim();
+            const aliyunAccessKeyId = aliyunAccessKeyIdInput.value.trim();
+            const aliyunAccessKeySecret = aliyunAccessKeySecretInput.value.trim();
+            const aliyunSignName = aliyunSignNameInput.value.trim();
+            const aliyunTemplateCode = aliyunTemplateCodeInput.value.trim();
             
             AI_CONFIG.apiKey = apiKey;
             AI_CONFIG.baiduApiKey = baiduApiKey;
@@ -3051,6 +3116,10 @@
             AI_CONFIG.didiMcpKey = didiMcpKey;
             AI_CONFIG.weatherApiKey = weatherApiKey;
             AI_CONFIG.city = city || '北京';
+            AI_CONFIG.aliyunAccessKeyId = aliyunAccessKeyId;
+            AI_CONFIG.aliyunAccessKeySecret = aliyunAccessKeySecret;
+            AI_CONFIG.aliyunSignName = aliyunSignName;
+            AI_CONFIG.aliyunTemplateCode = aliyunTemplateCode;
             
             localStorage.setItem('warmHeartApiKey', apiKey);
             localStorage.setItem('warmHeartBaiduApiKey', baiduApiKey);
@@ -3060,6 +3129,10 @@
             localStorage.setItem('warmHeartDidiMcpKey', didiMcpKey);
             localStorage.setItem('warmHeartWeatherApiKey', weatherApiKey);
             localStorage.setItem('warmHeartCity', city);
+            localStorage.setItem('warmHeartAliyunAccessKeyId', aliyunAccessKeyId);
+            localStorage.setItem('warmHeartAliyunAccessKeySecret', aliyunAccessKeySecret);
+            localStorage.setItem('warmHeartAliyunSignName', aliyunSignName);
+            localStorage.setItem('warmHeartAliyunTemplateCode', aliyunTemplateCode);
             
             AI_CONFIG.baiduAccessToken = null;
             
@@ -3111,7 +3184,7 @@
             }
         }
 
-        function sendSmsToChild(message) {
+        async function sendSmsToChild(message) {
             if (!AI_CONFIG.emergencyPhone) {
                 showToast('请先在设置中配置子女电话');
                 return;
@@ -3119,6 +3192,41 @@
             
             const phone = AI_CONFIG.emergencyPhone.replace(/\s/g, '');
             
+            if (AI_CONFIG.aliyunAccessKeyId && AI_CONFIG.aliyunAccessKeySecret && AI_CONFIG.aliyunSignName && AI_CONFIG.aliyunTemplateCode) {
+                try {
+                    const response = await fetch('/api/send-sms', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            phone: phone,
+                            message: message,
+                            aliyunAccessKeyId: AI_CONFIG.aliyunAccessKeyId,
+                            aliyunAccessKeySecret: AI_CONFIG.aliyunAccessKeySecret,
+                            aliyunSignName: AI_CONFIG.aliyunSignName,
+                            aliyunTemplateCode: AI_CONFIG.aliyunTemplateCode
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        showToast('短信已发送给子女');
+                    } else {
+                        showToast('短信发送失败：' + data.message);
+                        fallbackSendSms(phone, message);
+                    }
+                } catch (error) {
+                    console.error('发送短信失败:', error);
+                    showToast('短信发送失败，正在尝试其他方式');
+                    fallbackSendSms(phone, message);
+                }
+            } else {
+                fallbackSendSms(phone, message);
+            }
+        }
+
+        function fallbackSendSms(phone, message) {
             if (isMobileDevice()) {
                 const smsUrl = `sms:${phone}?body=${encodeURIComponent(message)}`;
                 const a = document.createElement('a');

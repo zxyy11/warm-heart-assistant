@@ -235,6 +235,71 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+app.post('/api/send-sms', async (req, res) => {
+    const { phone, message, aliyunAccessKeyId, aliyunAccessKeySecret, aliyunSignName, aliyunTemplateCode } = req.body;
+    
+    if (!phone || !message) {
+        return res.status(400).json({ success: false, message: '缺少手机号或短信内容' });
+    }
+    
+    if (!aliyunAccessKeyId || !aliyunAccessKeySecret || !aliyunSignName || !aliyunTemplateCode) {
+        return res.status(400).json({ success: false, message: '请配置阿里云短信参数' });
+    }
+    
+    try {
+        const crypto = require('crypto');
+        
+        const params = {
+            SignName: aliyunSignName,
+            TemplateCode: aliyunTemplateCode,
+            PhoneNumbers: phone,
+            TemplateParam: JSON.stringify({ content: message })
+        };
+        
+        const sortedKeys = Object.keys(params).sort();
+        let canonicalQueryString = '';
+        for (let i = 0; i < sortedKeys.length; i++) {
+            const key = sortedKeys[i];
+            canonicalQueryString += `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`;
+            if (i < sortedKeys.length - 1) {
+                canonicalQueryString += '&';
+            }
+        }
+        
+        const stringToSign = `POST&%2F&${encodeURIComponent(canonicalQueryString)}`;
+        const signature = crypto.createHmac('sha1', `${aliyunAccessKeySecret}&`).update(stringToSign).digest('base64');
+        
+        const response = await axios.post(
+            'https://dysmsapi.aliyuncs.com/',
+            canonicalQueryString,
+            {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': `Signature=${encodeURIComponent(signature)}`
+                },
+                params: {
+                    Action: 'SendSms',
+                    Version: '2017-05-25',
+                    AccessKeyId: aliyunAccessKeyId,
+                    SignatureMethod: 'HMAC-SHA1',
+                    Timestamp: new Date().toISOString(),
+                    SignatureVersion: '1.0',
+                    SignatureNonce: Date.now().toString()
+                }
+            }
+        );
+        
+        if (response.data.Code === 'OK') {
+            res.json({ success: true, message: '短信发送成功' });
+        } else {
+            res.json({ success: false, message: `短信发送失败: ${response.data.Message}` });
+        }
+    } catch (error) {
+        console.error('发送短信失败:', error.message);
+        res.json({ success: false, message: '发送短信失败', error: error.message });
+    }
+});
+
 app.get('/api/weather', async (req, res) => {
     try {
         const { lat, lon, city } = req.query;
